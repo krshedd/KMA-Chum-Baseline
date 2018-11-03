@@ -1,0 +1,347 @@
+---
+title: "Kodiak Chum Baseline - 2018 Update"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, message=FALSE, results='hide'}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(leaflet)
+library(DT)
+library(genepop)
+library(abind)
+bbind <- function(...) { abind(..., along = 3) }
+
+.username <- "krshedd"
+.password <- ""
+source("~/../R/Functions.GCL.R")
+```
+
+# Introduction
+
+## Purpose
+
+This is a quick baseline update to Andy Barclay's 2015 Kodiak chum baseline. This baseline update includes 3 new collections sampled by ADF&G staff (Birch Foster) in 2017:
+
+1) CMBARL17 - Barling Bay Creek - 9/1/2017
+2) CMKIAV17 - Kiavak Portage - 9/1/2017
+3) CMNATA17 - Natalia Bay Creek - 9/1/2017
+
+## Background
+
+Andy's work in late 2015 was done to assess population genetic structure of chum salmon in SE Kodiak, specifically in the Three Saints Bay area. Kodiak Regional Aquaculture Association (KRAA) wanted to establish a new hatchery in Old Harbor to make early-run chum salmon for a remote release site in Three Saints Bay. KRAA intended to use the Sturgeon broodstock, that they already use for their Kitoi Bay facility. ADF&G regional staff indicated that there are known early-run chum stocks in the Three Saints Bay area, which would present a genetic risk to using Sturgeon River broodstock in the area (similar run timing, but potentially genetically different). Regional staff indicated that Barling Bay Creek in particular had early-run chum salmon. Thus, regional staff collected temporal samples throughout the season from Barling Bay Creek and other nearby systems to get a better understanding of population genetic structure in SE Kodiak to determine whether early-run Barling Bay Creek chum were sufficiently distinct from Sturgeon River chum to be an unaccpetable genetic risk. Ultimately, Andy's work did show that Barling Bay Creek has significant temporal genetic structure throughout the season (July vs. August vs. September). These results resulted in a memo with a department recommendation to use local broodstock (early-run Barling Bay Creek) rather than Sturgeon River broodstock from Kitoi Bay for the Three Saints Bay project.
+
+This 2018 baseline update will incorporate three additional collections made by ADF&G staff. The results from this baseline update are not going to change the decision regarding use of local broodsource, they are intended to provide some additional *pre-hatchery* baseline.
+
+## Outline
+
+This R Notebook will perform the following tasks:
+
+  * Read in genotype data
+    + Create *LocusControl*
+    + Read in all project genotypes
+  * Map of all baseline collections
+  * Pooling Barling 2015
+    + Split `CMBARLR15` into *early*, *middle*, and *late* collections (as in the 2015 baseline)
+  * Determine *FailureRate*
+  * Data QA
+    + Removing fish missing >= 20% of genotypes
+    + Remove within collection duplicates
+    + Save final, post-QA genotypes
+  * Check *HWE* - collections
+  * Pooling temporal collections
+  * Check *HWE* - populations
+  * Map of all baseline populations
+  * Explore genetic structure
+    + Generate allele frequency plots
+    + Fst tree
+    + MDS using Fst
+
+# Read in genotype data
+
+Need to create *LocusControl* for the markers we are using and then read in all the genotype data for the same collections that Andy analyzed in 2015 + the three new collections from 2017 (the update).
+
+## Markerset
+
+This analysis is using the 96 SNPs from WASSIP.
+```{r create_locuscontrol}
+CreateLocusControl.GCL(markersuite = "ChumGolden2011_96SNPs", username = .username, password = .password)
+loci96 <- LocusControl$locusnames
+
+dir.create("../2018/Objects")
+save_objects(c("LocusControl", "loci96"), "../2018/Objects")
+```
+
+## Collections
+
+We want to include the same 86 collections used by Andy in his 2015 baseline + the 3 new collections from 2017.
+```{r collections_89}
+(collections_89 <- read_csv("../2018/collections89.csv") %>% 
+  pull("silly"))
+save_objects("collections_89", "../2018/Objects/")
+```
+
+Read in genotype data from LOKI.
+```{r read_loki}
+LOKI2R.GCL(sillyvec = collections_89, username = .username, password = .password)
+rm(.username, .password)
+
+dir.create("../2018/Genotypes")
+dir.create("../2018/Genotypes/original")
+save_sillys(collections_89, "../2018/Genotypes/original")
+```
+
+# Map of all baseline collections
+
+Pull the latitude/longitude data for `collections_89` from OceanAK, need to remove "UW" from all sillys for filtering to get the report.
+```{r collections_89_oceanak}
+writeClipboard(paste(str_replace(collections_89, "UW", ""), collapse = ";"))
+dir.create("../2018/OceanAK")
+```
+
+Create a map of the baseline collections
+```{r collections_89_map}
+read_csv("../2018/OceanAK/collections_89_Just the Lat_Longs.csv") %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addMarkers(~ Longitude, ~ Latitude, label = ~ `Silly Code`)
+```
+
+Create an awesome map of the baseline collections
+```{r collections_89_awesome_map}
+collections_89_info <- read_csv("../2018/OceanAK/collections_89_Collection Info_mod.csv") 
+
+collections_89_info %>% 
+  count(Quadrant)
+
+collections_89_info <- collections_89_info %>% 
+  mutate(color = case_when(Quadrant == "Peninsula - South" ~ "red",
+                           Quadrant == "Chignik" ~ "orange",
+                           Quadrant == "Kodiak Mainland" ~ "blue",
+                           Quadrant == "Kodiak/Afognak Islands" ~ "purple"))
+
+icons <- awesomeIcons(icon = 'ios-close', iconColor = 'black', library = 'ion', markerColor = collections_89_info$color)
+
+collections_89_info %>% 
+  leaflet() %>% 
+  addTiles() %>% 
+  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ `Silly Code`)
+```
+
+# Pooling Barling 2015
+
+We need to split `CMBARLR15` into *early*, *middle*, and *late* collections (as in the 2015 baseline), as this *silly* represents 3 distinct collections.
+```{r barling_dates}
+table(CMBARLR15.gcl$attributes$CAPTURE_DATE)
+```
+
+Use `AttributesToIDs.GCL` to split by date and pool into new silly's.
+```{r barling_split}
+# early
+CMBARLR15_early_ids <- AttributesToIDs.GCL(silly = "CMBARLR15", attribute = "CAPTURE_DATE", matching = "2015-07-09")
+PoolCollections.GCL(collections = "CMBARLR15", loci = loci96, IDs = list(CMBARLR15 = CMBARLR15_early_ids), newname = "CMBARLR15E")
+
+# middle
+CMBARLR15_middle_ids <- AttributesToIDs.GCL(silly = "CMBARLR15", attribute = "CAPTURE_DATE", matching = "2015-08-03")
+PoolCollections.GCL(collections = "CMBARLR15", loci = loci96, IDs = list(CMBARLR15 = CMBARLR15_middle_ids), newname = "CMBARLR15M")
+
+# late
+CMBARLR15_late_ids <- AttributesToIDs.GCL(silly = "CMBARLR15", attribute = "CAPTURE_DATE", matching = "2015-09-11")
+PoolCollections.GCL(collections = "CMBARLR15", loci = loci96, IDs = list(CMBARLR15 = CMBARLR15_late_ids), newname = "CMBARLR15L")
+
+save_sillys(c("CMBARLR15E", "CMBARLR15M", "CMBARLR15L"), "../2018/Genotypes/original/")
+```
+
+Now create a new *sillyvec* with the three temporal 2015 Barling collections split out and the original `CMBARLR15` removed. Planning to sort for ease of use.
+```{r collections_91}
+(collections_91 <- sort(c(collections_89[collections_89 != "CMBARLR15"], "CMBARLR15E", "CMBARLR15M", "CMBARLR15L")))
+save_objects("collections_91", "../2018/Objects/")
+```
+
+Save sillys post split.
+```{r save_collections_91}
+dir.create("../2018/Genotypes/original_split")
+save_sillys(collections_91, "../2018/Genotypes/original_split")
+```
+
+# Determine *FailureRate*
+
+```{r failure_rate}
+project <- "westward_chum_baseline"
+loci <- loci96
+(failure_rate <- FailureRate.GCL(sillyvec = collections_91))
+failure_rate_noplots <- failure_rate[1:4]
+save_objects("failure_rate_noplots", "../2018/Objects/")
+```
+
+Also calculate sample size by locus and save.
+```{r}
+(sample_size_by_locus <- SampSizeByLocus.GCL(sillyvec = collections_91, loci = loci96) %>% 
+  as_tibble(rownames = "silly"))
+
+dir.create("../2018/Tables")
+write_csv(sample_size_by_locus, "../2018/Tables/sample_size_by_locus.csv")
+```
+
+# Data QA
+
+Perform standard data QA processes to filter out untrustworth genotypes.
+```{r qa_setup}
+sample_size_qa <- tibble(silly = collections_91) %>% 
+  mutate(genotyped = sapply(silly, function(x) get(paste0(x, ".gcl"))$n))
+```
+
+## Missing
+
+Remove individuals missing >=20% of genotypes (i.e. the 80% rule).
+```{r qa_missing}
+miss_loci <- RemoveIndMissLoci.GCL(sillyvec = collections_91, proportion = 0.8)
+save_objects("miss_loci", "../2018/Objects/")
+
+# show individuals removed
+miss_loci[miss_loci != "None"]
+
+sample_size_qa <- sample_size_qa %>% 
+  mutate(missing = genotyped - sapply(silly, function(x) get(paste0(x, ".gcl"))$n))
+```
+
+## Duplicate
+
+Remove duplicate individuals within the same collection. Typically we specify *duplicates* as a pair of individuals that share >=95% of genotypes. Once a pair of *duplicates* is identified, we keep the individual with the most genotypes and remove the other.
+```{r qa_duplicate}
+duplicate_check_95 <- CheckDupWithinSilly.GCL(sillyvec = collections_91, loci = loci96, quantile = NULL, minproportion = 0.95)
+duplicate_summary <- sapply(collections_91, function(x) duplicate_check_95[[x]]$report, simplify = FALSE)
+duplicate_remove <- RemoveDups.GCL(duplicate_check_95)
+save_objects(c("duplicate_summary", "duplicate_remove"), "../2018/Objects/")
+
+# show individuals removed
+duplicate_remove[duplicate_remove != "Nothing Removed"]
+
+sample_size_qa <- sample_size_qa %>% 
+  mutate(duplicate = genotyped - missing - sapply(silly, function(x) get(paste0(x, ".gcl"))$n))
+```
+
+## Final
+
+How many fish did we end up with in our final baseline? Save final genotypes.
+```{r qa_final}
+(sample_size_qa <- sample_size_qa %>% 
+  mutate(final = sapply(silly, function(x) get(paste0(x, ".gcl"))$n)))
+write_csv(sample_size_qa, "../2018/Tables/sample_size_qa.csv")
+
+dir.create("../2018/Genotypes/original_split_postQA/")
+save_sillys(collections_91, "../2018/Genotypes/original_split_postQA/")
+```
+
+What is smallest collection?
+```{r qa_arrange}
+sample_size_qa %>% 
+  arrange(final)
+```
+
+Whoa, we should totally junk some of these collections given their low sample size (or complete lack of fish!). We'll keep anything with at least 40 fish.
+```{r collections_88}
+(collections_88 <- sample_size_qa %>% 
+   filter(final > 40) %>% 
+   pull("silly"))
+save_objects("collections_88", "../2018/Objects/")
+```
+
+# Check *HWE* - collections
+
+Write out a *Genepop* file to check HWE within collections.
+```{r write_genepop}
+dir.create("../2018/Genepop")
+gcl2Genepop.GCL(sillyvec = collections_88, loci = loci96, path = "../2018/Genepop/collections_88.gen", VialNums = TRUE)
+```
+
+Calculate HWE using the *genepop* package [link](https://cran.r-project.org/web/packages/genepop/index.html).
+```{r collections_88_hwe}
+test_HW(inputFile = "../2018/Genepop/collections_88.gen", outputFile = "../2018/Genepop/collections_88.txt.P")
+```
+
+## Summary table
+Read in results and save summary HWE p-values.
+```{r hwe_results}
+hwe_collections_88 <- ReadGenepopHWE.GCL(file = "../2018/Genepop/collections_88.txt.P", sillyvec = collections_88)
+(hwe_summary_collections_88 <- hwe_collections_88$SummaryPValues %>% 
+  as_tibble(rownames = "locus"))
+write_csv(x = hwe_summary_collections_88, "../2018/Tables/hwe_summary_collections_88.csv")
+```
+
+### Collections out of HWP
+What do overall-loci p-values look like for collections?
+```{r hwe_overall_loci}
+hwe_summary_collections_88 %>% 
+  gather(silly, p, -locus) %>%
+  filter(locus == "Overall Loci") %>% 
+  arrange(p)
+```
+
+All look pretty good with the potential exception of `CMBARLR15L`.
+
+### Loci out of HWP
+What do overall-loci p-values look like for loci?
+```{r hwe_overall_pops}
+hwe_summary_collections_88 %>% 
+  gather(silly, p, -locus) %>%
+  filter(silly == "Overall Pops") %>% 
+  arrange(p)
+```
+
+There are a couple of loci that are suspect.
+
+## HWP plots
+
+Per Waples 2014, we will plot a histogram of HWP p-values to look for collections/loci that do not conform to HWP. We will limit our search to the specific collection and loci that were suspicious.
+
+### Collection
+
+Plot p-values per locus for `CMBARLR15L`
+```{r hwe_plot_CMBARLR15L}
+hwe_summary_collections_88 %>% 
+  gather(silly, p, -locus) %>%
+  filter(silly == "CMBARLR15L") %>% 
+  filter(locus != "Overall Loci") %>% 
+  ggplot(aes(p)) + 
+  geom_histogram(binwidth = 0.05) +
+  geom_hline(yintercept = 5, colour = "red") +
+  ggtitle("HWP p-values by locus for CMBARLR15L")
+```
+
+Looks fine, no major cause for concern, now on to plotting for loci.
+
+### Loci
+
+Plot p-values per collection for loci with overall pops p-value < 0.2.
+```{r hwe_plot_loci}
+# filter for loci with overall pops < 0.2
+hwe_loci_plot <- hwe_summary_collections_88 %>% 
+  gather(silly, p, -locus) %>%
+  filter(silly == "Overall Pops" & p < 0.2) %>% 
+  pull(locus)
+
+# plot
+hwe_summary_collections_88 %>% 
+  gather(silly, p, -locus) %>%
+  filter(locus %in% hwe_loci_plot) %>% 
+  filter(silly != "Overall Pops") %>%
+  ggplot(aes(p)) + 
+  geom_histogram(binwidth = 0.05) +
+  geom_hline(yintercept = length(collections_88) / 20, colour = "red") +
+  ggtitle("HWP p-values by collection") +
+  facet_grid( ~ locus)
+```
+
+Oke_U2041-84 and Oke_U506-110 are a bit suspect, but we'll let them go since their overall p-values were > 0.05.
+
+## Takeaway
+
+All collections and loci were retained.
+
+# Pooling temporal collections
+
+Now I'll follow Andy's pooling of temporal collections in to *populations*.
