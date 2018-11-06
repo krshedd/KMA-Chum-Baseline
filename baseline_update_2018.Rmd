@@ -107,7 +107,7 @@ Create a map of the baseline collections
 read_csv("../2018/OceanAK/collections_89_Just the Lat_Longs.csv") %>% 
   leaflet() %>% 
   addTiles() %>% 
-  addMarkers(~ Longitude, ~ Latitude, label = ~ `Silly Code`)
+  addMarkers(~ Longitude, ~ Latitude, label = ~ `Silly Code`, clusterOptions = markerClusterOptions())
 ```
 
 Create an awesome map of the baseline collections
@@ -345,3 +345,54 @@ All collections and loci were retained.
 # Pooling temporal collections
 
 Now I'll follow Andy's pooling of temporal collections in to *populations*.
+```{r temporal_pooling_check}
+collections_89_info %>% 
+  arrange(Location)
+```
+
+## Non-Barling
+Create a list for pooling (excluding Barling). **Note** some are different than Andy's (i.e. Stepovak)
+```{r temporal_pooling_list}
+temporal_pooling <- list("Amber Bay" = c("CMWESN93UW", "CMAMBM09UW"),
+                         "Balboa Bay" = c("CHBAL92UW", "CMFOST09UW"),
+                         "Hallo Bay" = c("CMWESH93UW", "CMBIGRI09UW"),
+                         "Bear Bay" = c("CMWESD93UW", "CMBEARBC09UW"),
+                         "Big Sukhoi" = c("CMBSU92UW", "CMBSUK09UW"),
+                         "Canoe Bay" = c("CMCAN92UW", "CMCAN09UW"),
+                         "Chichagof Bay" = c("CMCHI96UW", "CMCHI09UW"),
+                         "Chigniagak Bay" = c("CMWESI93UW", "CMCHIGK09UW"),
+                         "Bear Bay" = c("CMWESD93UW", "CMBEARBC09UW"),
+                         "Gull Cape" = c("CMWESP93UW", "CMGULLC09UW"),
+                         "Ivanof River" = c("CMWESL93UW", "CMIVAN09UW"),
+                         "Kialagvik River" = c("CMWESF93UW", "CMKIAL09UW"),
+                         "Kitoi Bay" = c("CMWESA93UW", "CMKITB09UW"),
+                         "Kizhuyak River" = c("CHKIZ92UW", "CMKIZH09UW"),
+                         "Kujulik Bay" = c("CMWESK93UW", "CMKUJUNF09UW"),
+                         "Little John Lagoon" = c("CHLIJ92UW", "CMLIJ09UW"),
+                         "Portage Creek" = c("CMWESJ93UW", "CMPORTC08UW"),
+                         "Russell Creek" = c("CMRUS92UW", "CMRUS93UW", "CMRUS09UW"),
+                         "Russian River" = c("CMRUSSI07UW", "CMRUSSI09UW"),
+                         "Sandy Cove" = c("CMSANC96UW", "CMSANC09UW"),
+                         "Stepovak Bay" = c("CMSTE92UW", "CMWESM93UW", "CMSTE09UW"),
+                         "Uganik River" = c("CHUGA92UW", "CMUGAN09UW"),
+                         "Volcano Bay" = c("CMVOL92UW", "CMVOL96UW", "CMVOL09UW")
+)
+save_objects("temporal_pooling", "../2018/Objects/")
+
+# verify that all sillys are in collections_88
+setdiff(unlist(temporal_pooling), collections_88)
+```
+
+Now that we have our list of putative populations to pool, let's see how they do in Fisher's test.
+```{r temporal_pooling_fishers, message=FALSE, warning=FALSE}
+collections_88_allele_freq <- FreqPop.GCL(sillyvec = collections_88, loci = loci96)
+temporal_pooling_results <- FishersTest.GCL(freq = collections_88_allele_freq, loci = loci96, tests = temporal_pooling)
+save_objects("temporal_pooling_results", "../2018/Objects/")
+
+# overall loci p-values
+temporal_pooling_results$OverallResults %>% 
+  as_tibble(rownames = "pop") %>% 
+  arrange(overall)
+```
+
+## Barling
