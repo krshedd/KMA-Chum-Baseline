@@ -1,6 +1,9 @@
 ---
 title: "Kodiak Chum Baseline - 2018 Update"
-output: html_notebook
+output:
+  html_notebook:
+    theme: united
+    toc: yes
 editor_options: 
   chunk_output_type: inline
 ---
@@ -105,7 +108,7 @@ dir.create("../2018/OceanAK")
 Create a map of the baseline collections
 ```{r collections_89_map}
 read_csv("../2018/OceanAK/collections_89_Just the Lat_Longs.csv") %>% 
-  leaflet() %>% 
+  leaflet(width = "100%") %>% 
   addTiles() %>% 
   addMarkers(~ Longitude, ~ Latitude, label = ~ `Silly Code`, clusterOptions = markerClusterOptions())
 ```
@@ -126,7 +129,7 @@ collections_89_info <- collections_89_info %>%
 icons <- awesomeIcons(icon = 'ios-close', iconColor = 'black', library = 'ion', markerColor = collections_89_info$color)
 
 collections_89_info %>% 
-  leaflet() %>% 
+  leaflet(width = "100%") %>% 
   addTiles() %>% 
   addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ `Silly Code`)
 ```
@@ -351,6 +354,9 @@ collections_89_info %>%
 ```
 
 ## Non-Barling
+
+### Andy's
+
 Create a list for pooling (excluding Barling). **Note** some are different than Andy's (i.e. Stepovak)
 ```{r temporal_pooling_list}
 temporal_pooling <- list("Amber Bay" = c("CMWESN93UW", "CMAMBM09UW"),
@@ -361,10 +367,9 @@ temporal_pooling <- list("Amber Bay" = c("CMWESN93UW", "CMAMBM09UW"),
                          "Canoe Bay" = c("CMCAN92UW", "CMCAN09UW"),
                          "Chichagof Bay" = c("CMCHI96UW", "CMCHI09UW"),
                          "Chigniagak Bay" = c("CMWESI93UW", "CMCHIGK09UW"),
-                         "Bear Bay" = c("CMWESD93UW", "CMBEARBC09UW"),
-                         "Gull Cape" = c("CMWESP93UW", "CMGULLC09UW"),
+                         "Gull Cape Creek" = c("CMWESP93UW", "CMGULLC09UW"),
                          "Ivanof River" = c("CMWESL93UW", "CMIVAN09UW"),
-                         "Kialagvik River" = c("CMWESF93UW", "CMKIAL09UW"),
+                         "Kialagvik Creek" = c("CMWESF93UW", "CMKIAL09UW"),
                          "Kitoi Bay" = c("CMWESA93UW", "CMKITB09UW"),
                          "Kizhuyak River" = c("CHKIZ92UW", "CMKIZH09UW"),
                          "Kujulik Bay" = c("CMWESK93UW", "CMKUJUNF09UW"),
@@ -387,7 +392,7 @@ Now that we have our list of putative populations to pool, let's see how they do
 ```{r temporal_pooling_fishers, message=FALSE, warning=FALSE}
 collections_88_allele_freq <- FreqPop.GCL(sillyvec = collections_88, loci = loci96)
 temporal_pooling_results <- FishersTest.GCL(freq = collections_88_allele_freq, loci = loci96, tests = temporal_pooling)
-save_objects("temporal_pooling_results", "../2018/Objects/")
+save_objects(c("collections_88_allele_freq", "temporal_pooling_results"), "../2018/Objects/")
 
 # overall loci p-values
 temporal_pooling_results$OverallResults %>% 
@@ -395,4 +400,275 @@ temporal_pooling_results$OverallResults %>%
   arrange(overall)
 ```
 
+### WASSIP
+
+I went and double checked the WASSIP chum baseline [SP 12-26](http://www.adfg.alaska.gov/FedAidpdfs/SP12-26.pdf), Table 2. Should have done this first.
+
+  * The 1992 and 1996 Volcano Bay collections got dropped (-CMVOL92UW, -CMVOL96UW)
+  * Pool Stepovak Bay 1992 and 2009, keep Stepovak River 2009 separate, drop 1993 Stepovak River (-CMWESM93UW)
+  * Drop Amber Bay 1993 (-CMWESN93UW)
+  * Drop Hallo Bay 1993 (-CMWESH93UW)
+
+```{r temporal_pooling_WASSIP}
+temporal_pooling_WASSIP <- list("Balboa Bay" = c("CHBAL92UW", "CMFOST09UW"),
+                                "Bear Bay" = c("CMWESD93UW", "CMBEARBC09UW"),
+                                "Big Sukhoi" = c("CMBSU92UW", "CMBSUK09UW"),
+                                "Canoe Bay" = c("CMCAN92UW", "CMCAN09UW"),
+                                "Chichagof Bay" = c("CMCHI96UW", "CMCHI09UW"),
+                                "Chigniagak Bay" = c("CMWESI93UW", "CMCHIGK09UW"),
+                                "Gull Cape Creek" = c("CMWESP93UW", "CMGULLC09UW"),
+                                "Ivanof River" = c("CMWESL93UW", "CMIVAN09UW"),
+                                "Kialagvik Creek" = c("CMWESF93UW", "CMKIAL09UW"),
+                                "Kitoi Bay" = c("CMWESA93UW", "CMKITB09UW"),
+                                "Kizhuyak River" = c("CHKIZ92UW", "CMKIZH09UW"),
+                                "Kujulik Bay" = c("CMWESK93UW", "CMKUJUNF09UW"),
+                                "Little John Lagoon" = c("CHLIJ92UW", "CMLIJ09UW"),
+                                "Portage Creek" = c("CMWESJ93UW", "CMPORTC08UW"),
+                                "Russell Creek" = c("CMRUS92UW", "CMRUS93UW", "CMRUS09UW"),
+                                "Russian River" = c("CMRUSSI07UW", "CMRUSSI09UW"),
+                                "Sandy Cove" = c("CMSANC96UW", "CMSANC09UW"),
+                                "Stepovak Bay" = c("CMSTE92UW", "CMSTE09UW"),
+                                "Uganik River" = c("CHUGA92UW", "CMUGAN09UW")
+)
+save_objects("temporal_pooling_WASSIP", "../2018/Objects/")
+
+# verify that all sillys are in collections_88
+setdiff(unlist(temporal_pooling_WASSIP), collections_88)
+```
+
+Now that we have our list of WASSIP populations to pool, let's see how they do in Fisher's test.
+```{r temporal_pooling_WASSIP_fishers, message=FALSE, warning=FALSE}
+temporal_pooling_WASSIP_results <- FishersTest.GCL(freq = collections_88_allele_freq, loci = loci96, tests = temporal_pooling_WASSIP)
+save_objects("temporal_pooling_WASSIP_results", "../2018/Objects/")
+
+# overall loci p-values
+temporal_pooling_WASSIP_results$OverallResults %>% 
+  as_tibble(rownames = "pop") %>% 
+  arrange(overall)
+```
+
+Looks good enough to me, also coincides with WASSIP, so that is good news. Now on to check Barling.
+
 ## Barling
+
+Test all possible pairwise combinations of Barling samples
+```{r barling_pooling, message=FALSE, warning=FALSE}
+barling_pooling <- combn(x = grep(pattern = "BARL", x = collections_88, value = TRUE), m = 2, simplify = FALSE)
+save_objects("temporal_pooling_WASSIP", "../2018/Objects/")
+
+barling_pooling_results <- FishersTest.GCL(freq = collections_88_allele_freq, loci = loci96, tests = barling_pooling)
+save_objects("barling_pooling_results", "../2018/Objects/")
+
+# overall loci p-values
+barling_pooling_results$OverallResults %>% 
+  as_tibble(rownames = "pop") %>% 
+  arrange(overall)
+```
+
+While it certainly does seem like we "could" pool some of the Barling collections per our WASSIP rules, I think it is best to leave them all separate for now for plotting purposes.
+
+## Final pooling
+
+Accept all WASSIP pooling and move on.
+```{r pool_per_WASSIP}
+invisible(
+  lapply(temporal_pooling_WASSIP, function(pop) {
+    PoolCollections.GCL(collections = pop, loci = loci96, IDs = NULL, newname = paste(pop, collapse = "."))
+  } )
+)
+```
+
+## Ordered populations
+
+Need new `sillyvec` with pooled populations.
+```{r post_pooling}
+collections_post_pooling <- c(
+  setdiff(setdiff(collections_88, 
+          unlist(temporal_pooling_WASSIP)),  # get single collections from non-WASSIP pooling
+  c("CMVOL92UW", "CMVOL96UW", "CMWESM93UW", "CMWESN93UW", "CMWESH93UW")), # drop these old collections that didn't pool
+  sapply(temporal_pooling_WASSIP, function(pop) {
+    paste(pop, collapse = ".")  # add pooled WASSIP
+  })
+)
+
+dir.create("../2018/Genotypes/original_split_postQA_postpooling/")
+save_sillys(collections_post_pooling, "../2018/Genotypes/original_split_postQA_postpooling/")
+```
+
+Now need to join up these post pooling collections (populations) with the paired OceanAK data from `collections_89_info` and get in geographical order.
+
+```{r post_pooling_table, message=FALSE, warning=FALSE}
+populations_63_info <- tibble(pop = collections_post_pooling) %>% 
+  mutate(n = sapply(collections_post_pooling, function(x) {get(paste0(x, ".gcl"))$n} )) %>%  # get final sample sizes
+  mutate(pop_no_UW = str_remove_all(pop, "UW")) %>%  # remove UW extension
+  mutate(pop_no_UW = recode(pop_no_UW, !!!list("CMBARLR15E" = "CMBARLR15", "CMBARLR15M" = "CMBARLR15", "CMBARLR15L" = "CMBARLR15"))) %>%  # remove E, M, L extension for Barling 2015 for joining
+  separate(pop_no_UW, c("col1", "col2", "col3"), sep = "\\.", remove = TRUE) %>%  # separate sillys to join dates
+  left_join(select(collections_89_info, `Silly Code`, `Collection Date`), by = c("col1" = "Silly Code")) %>%  # get date 1
+  left_join(select(collections_89_info, `Silly Code`, `Collection Date`), by = c("col2" = "Silly Code")) %>%  # get date 2
+  left_join(select(collections_89_info, `Silly Code`, `Collection Date`), by = c("col3" = "Silly Code")) %>%  # get date 3
+  rename("Collection Date 1" = "Collection Date.x", "Collection Date 2" = "Collection Date.y", "Collection Date 3" = "Collection Date") %>%  # rename dates
+  mutate(`Collection Date 1` = str_replace(`Collection Date 1`, "1/1/1992", "1992")) %>%  # CMZAC09 has bogus date
+  mutate(Month = month(mdy(`Collection Date 1`), label = TRUE)) %>% #  extract month
+  mutate(col = ifelse(is.na(col3), ifelse(is.na(col2), col1, col2), col3)) %>%  # get latest collection from each pop
+  left_join(select(collections_89_info, `Silly Code`, Quadrant, color, Location, Latitude, Longitude), by = c("col" = "Silly Code")) %>%  # join OceanAK based on latest collection from each pop
+  select(pop, Location, `Collection Date 1`, `Collection Date 2`, `Collection Date 3`, Month, Quadrant, n, Latitude, Longitude, color) %>%  # keep columns
+  separate(Location, c("Location", "trash"), sep = " - ") %>%  # standardize Locations part 1
+  separate(Location, c("Location", "more_trash"), sep = " \\(") %>%  # standardize Locations part 2
+  select(-trash, -more_trash) %>%  # drop bogus location info
+  mutate(`Collection Date 1` = case_when(pop == "CMBARLR15M" ~ "8/3/2015",
+                                         pop == "CMBARLR15L" ~ "9/11/2015",
+                                         TRUE ~ `Collection Date 1`))  # fix Barling 2015 dates
+```
+
+Create a leaflet map to determine map order for populations.
+```{r population_map}
+populations_63_info <- populations_63_info %>% 
+  mutate(color = case_when(Quadrant == "Peninsula - South" ~ "red",
+                           Quadrant == "Chignik" ~ "orange",
+                           Quadrant == "Kodiak Mainland" ~ "blue",
+                           Quadrant == "Kodiak/Afognak Islands" ~ "purple"))
+
+icons <- awesomeIcons(icon = 'ios-close', iconColor = 'black', library = 'ion', markerColor = populations_63_info$color)
+
+populations_63_info %>% 
+  leaflet(width = "100%") %>% 
+  addTiles() %>% 
+  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ pop, labelOptions = labelOptions(noHide = TRUE, direction = "auto"))
+```
+
+Save geography ordered population vector.  
+
+Add new grouping variable for:  
+  * Peninsula - South
+  * Chignik
+  * Kodiak Mainland
+  * Kodiak/Afognak Islands
+  * Sturgeon/Kitoi
+  * Barling River
+  * 2017 Collections
+```{r populations_63}
+populations_63 <- read_csv("../2018/populations_63.csv")
+
+populations_63_info <- populations_63_info %>% 
+  left_join(populations_63, by = "pop") %>% 
+  rename(Group = Quadrant) %>% 
+  select(map_no, pop, Location, `Collection Date 1`, `Collection Date 2`, `Collection Date 3`, Month, Group, n, Latitude, Longitude, color) %>% 
+  arrange(map_no)
+
+write_csv(populations_63_info, "../2018/Tables/populations_63_info.csv")
+
+populations_63 <- populations_63$pop
+save_objects(c("populations_63", "populations_63_info"), "../2018/Objects/")
+```
+
+Make map with the correct map numbers to double check.
+```{r population_map_numbers}
+icons <- awesomeIcons(icon = 'ios-close', iconColor = 'black', library = 'ion', markerColor = populations_63_info$color)
+
+populations_63_info %>% 
+  leaflet(width = "100%") %>% 
+  addTiles() %>% 
+  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ as.character(map_no), labelOptions = labelOptions(noHide = TRUE, direction = "top"))
+```
+
+# Check *HWE* - populations
+
+Write out a *Genepop* file to check HWE within populations.
+```{r write_genepop_pop}
+gcl2Genepop.GCL(sillyvec = populations_63, loci = loci96, path = "../2018/Genepop/populations_63.gen", VialNums = TRUE)
+```
+
+Calculate HWE using the *genepop* package [link](https://cran.r-project.org/web/packages/genepop/index.html).
+```{r populations_63_hwe}
+test_HW(inputFile = "../2018/Genepop/populations_63.gen", outputFile = "../2018/Genepop/populations_63.txt.P")
+```
+
+## Summary table
+Read in results and save summary HWE p-values.
+```{r hwe_results_pop}
+hwe_populations_63 <- ReadGenepopHWE.GCL(file = "../2018/Genepop/populations_63.txt.P", sillyvec = populations_63)
+(hwe_summary_populations_63 <- hwe_populations_63$SummaryPValues %>% 
+  as_tibble(rownames = "locus"))
+write_csv(x = hwe_summary_populations_63, "../2018/Tables/hwe_summary_populations_63.csv")
+```
+
+### Populations out of HWP
+What do overall-loci p-values look like for collections?
+```{r hwe_overall_loci_pop}
+hwe_summary_populations_63 %>% 
+  gather(silly, p, -locus) %>%
+  filter(locus == "Overall Loci") %>% 
+  arrange(p)
+```
+
+Looks pretty good, nothing major to worry aobut. On to Fst!
+
+# Combine loci
+
+Planning to use WASSIP locus information (ADF&G SP12-26):  
+
+  * Combing 3 haploid loci (mitochondrial)
+    - Oke_Cr30
+    - Oke_Cr386
+    - Oke_ND3-69
+  * Combine 2 linked diploid loci (nuclear)
+    - Oke_U1021-102
+    - Oke_U1022-139
+  * Drop 2 diploid loci (nuclear) due to linkage
+    - Oke_gdh1-62
+    - Oke_pgap-92
+
+```{r combine_loci}
+mito_combine <- names(which(LocusControl$ploidy == 1))
+nuclear_combine <- c("Oke_U1021-102", "Oke_U1022-139")
+nuclear_drop <- c("Oke_gdh1-62", "Oke_pgap-92")
+
+CombineLoci.GCL(sillyvec = populations_63, markerset = nuclear_combine, update = TRUE, delim = ".")
+CombineLoci.GCL(sillyvec = populations_63, markerset = mito_combine, update = TRUE, delim = ".")
+dir.create("../2018/Genotypes/original_split_postQA_postpooling_combineloci/")
+save_sillys(populations_63, "../2018/Genotypes/original_split_postQA_postpooling_combineloci/")
+
+loci91 <- c(
+  setdiff(loci96, 
+          c(nuclear_drop, mito_combine, nuclear_combine)),  # drop linked markers and single combined
+  paste(nuclear_combine, collapse = "."), paste(mito_combine, collapse = "."))  # add combined
+```
+
+# Allele frequency plots
+
+Calculate allele frequencies.
+```{r allele_frequencies}
+dir.create("../2018/FreqPlots")
+# Need appropriate groupvec
+# allele_freq <- FreqFisPlot4SNPs.GCL(sillyvec = populations_63, loci = loci91[-c(90:91)], )
+```
+
+
+# Fst
+
+## Calculate
+Now that we have our final post-QA, post-pooling genotypes, time to calculate Fst between all of our populations.
+```{r Fst_tree}
+dir.create("../2018/FSTAT")
+Fst_tree_populations_63_loci91 <- PairwiseFstTree.GCL(sillyvec = populations_63, loci = loci91, dir = "../2018/FSTAT", nboots = 1000, ncores = 4, returnbootstrapFst = FALSE)
+```
+
+## Heatmap of Fst
+```{r fst_heatmap, fig.width=11.5, fig.height=10}
+get_lower_tri <- function(mat) {
+  mat[upper.tri(mat)] <- NA
+  return(mat)
+}
+
+pairwise_fst <- get_lower_tri(Fst_tree_populations_63_loci91$PairwiseFst) %>% 
+  as_tibble(rownames = "pop1") %>%
+  mutate(pop1 = factor(pop1, populations_63)) %>% 
+  gather(pop2, fst, -pop1, na.rm = TRUE, factor_key = TRUE) 
+
+pairwise_fst %>% 
+  ggplot(aes(x = pop1, y = pop2, fill = fst)) +
+  geom_tile() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ggtitle("Pairwise Fst - 63 Populations, 91 Loci")
+```
+

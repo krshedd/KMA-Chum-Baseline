@@ -1,5 +1,5 @@
 Genepop
-GenepopInputFile=../2018/Genepop/collections_88.gen
+GenepopInputFile=../2018/Genepop/populations_63.gen
 MenuOptions=1:3
 Dememorisation=10000
 HWtests=MCMC
