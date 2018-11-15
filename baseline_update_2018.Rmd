@@ -35,11 +35,13 @@ This is a quick baseline update to Andy Barclay's 2015 Kodiak chum baseline. Thi
 2) CMKIAV17 - Kiavak Portage - 9/1/2017
 3) CMNATA17 - Natalia Bay Creek - 9/1/2017
 
+The purpose of this baseline update was to gather pre-hatchery population structure for spawning aggregates proximate to Barling Bay Creek (potential brood source) and Three Saints Bay (potential remote release site).
+
 ## Background
 
 Andy's work in late 2015 was done to assess population genetic structure of chum salmon in SE Kodiak, specifically in the Three Saints Bay area. Kodiak Regional Aquaculture Association (KRAA) wanted to establish a new hatchery in Old Harbor to make early-run chum salmon for a remote release site in Three Saints Bay. KRAA intended to use the Sturgeon broodstock, that they already use for their Kitoi Bay facility. ADF&G regional staff indicated that there are known early-run chum stocks in the Three Saints Bay area, which would present a genetic risk to using Sturgeon River broodstock in the area (similar run timing, but potentially genetically different). Regional staff indicated that Barling Bay Creek in particular had early-run chum salmon. Thus, regional staff collected temporal samples throughout the season from Barling Bay Creek and other nearby systems to get a better understanding of population genetic structure in SE Kodiak to determine whether early-run Barling Bay Creek chum were sufficiently distinct from Sturgeon River chum to be an unaccpetable genetic risk. Ultimately, Andy's work did show that Barling Bay Creek has significant temporal genetic structure throughout the season (July vs. August vs. September). These results resulted in a memo with a department recommendation to use local broodstock (early-run Barling Bay Creek) rather than Sturgeon River broodstock from Kitoi Bay for the Three Saints Bay project.
 
-This 2018 baseline update will incorporate three additional collections made by ADF&G staff. The results from this baseline update are not going to change the decision regarding use of local broodsource, they are intended to provide some additional *pre-hatchery* baseline.
+This 2018 baseline update will incorporate three additional collections made by ADF&G staff. The results from this baseline update are not going to change the decision regarding use of local broodsource, they are intended to provide some additional *pre-hatchery* baseline stock structure information.
 
 ## Outline
 
