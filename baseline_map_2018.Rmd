@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Westward Chum Baseline Map
+
+```{r map, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(leaflet)
+
+(populations_63_info <- read_csv("../2018/Tables/populations_63_info.csv"))
+
+populations_63_info %>% 
+  count(Group)
+
+icons <- awesomeIcons(icon = 'egg', iconColor = 'transparent', library = 'ion', markerColor = populations_63_info$color)
+
+populations_63_info %>% 
+  leaflet(width = "100%") %>% 
+  addTiles() %>% 
+  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ as.character(map_no), popup = ~ Location, labelOptions = labelOptions(noHide = TRUE, textOnly = TRUE, direction = "top"))
+```
+
