@@ -17,6 +17,7 @@ library(DT)
 library(genepop)
 library(abind)
 bbind <- function(...) { abind(..., along = 3) }
+Sys.setenv(RGL_USE_NULL = TRUE)
 library(rgl)
 
 .username <- "krshedd"
@@ -699,40 +700,13 @@ get_lower_tri(pairwise_fst) %>%
 ### All populations
 
 Make an MDS of the Fst data for comparison to Andy's work back in 2015.
-```{r fst_mds_all}
-MDS.f<-function(dist,popvec,colvec,main,labels=F,locNames=F,axes=F,box=T,adj=c(2,2),cex=.7,size=1.3){
-  names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
-  xx=dist[popvec,popvec]
-  x=as.vector(cmdscale(xx,k=3)[,1])
-  y=as.vector(cmdscale(xx,k=3)[,2])
-  z=as.vector(cmdscale(xx,k=3)[,3])
-  
-  par3d
-  
-  plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
-  
-  plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
-  
-  if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
-  
-}
-
-MDS.f(dist = pairwise_fst, popvec = 1:63, colvec = match(colors_7[groupvec_7], colors()), main = "", labels = TRUE, locNames = 1:63, axes = TRUE, box = TRUE, adj = c(1.5, 1.5), cex = 1, size = 1.3)
-dir.create("../2018/MDS")
-# rgl.postscript("../2018/MDS/all_populations_63_fst.pdf", fmt = "pdf", drawText = TRUE)
-rgl.snapshot("../2018/MDS/all_populations_63_fst.png", fmt = "png")
-```
-
-### Kodiak populations
-
-Make an MDS of the Fst data for just Kodiak populations
-
-```{r fst_mds_kodiak, message=FALSE, warning=FALSE, fig.width=11.5, fig.height=10}
-# MDS.f(dist = pairwise_fst, popvec = 32:63, colvec = match(colors_7[groupvec_7], colors()), main = "", labels = TRUE, locNames = 1:63, axes = TRUE, box = TRUE, adj = c(1.5, 1.5), cex = 1, size = 1.3)
-
+```{r fst_mds_all, warning=FALSE, fig.width=11.5, fig.height=10}
 dist = pairwise_fst
-popvec = 32:63
+popvec = 1:63
+groupsvec = 1:7
 colvec = match(colors_7[groupvec_7], colors())
+groups = groups_7[groupsvec]
+cols = colors_7[groupsvec]
 main = ""
 labels = TRUE
 locNames = 1:63
@@ -753,30 +727,25 @@ plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,ty
 
 plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
 
-if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='',
-                      legend3d("topright", legend = groups_7, pch = 16, col = colors_7, inset = c(0), cex = 0.65))}
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+
+par3d(windowRect = c(0, 0, 2000, 2000))
+
+legend3d("topright", legend = groups, pch = 16, col = cols, inset = c(0), cex = 5)
 
 rglwidget()
-
-#~~~~~~~~
-
-# rgl.snapshot("../2018/MDS/kodiak_populations_63_fst.png", fmt = "png")
 ```
 
-### Kodiak populations, no outliers
+### Kodiak populations
 
-Remove Sturgeon/Kito Bay populations, Karluk Lagoon, Gull Cape Lagoon, Big Sukhoi, and Sitkinak Island as outliers.
-```{r fst_mds_kodiak_no_outliers}
-# MDS.f(dist = pairwise_fst, popvec = 32:63, colvec = match(colors_7[groupvec_7], colors()), main = "", labels = TRUE, locNames = 1:63, axes = TRUE, box = TRUE, adj = c(1.5, 1.5), cex = 1, size = 1.3)
+Make an MDS of the Fst data for just Kodiak populations
 
+```{r fst_mds_kodiak, warning=FALSE, fig.width=11.5, fig.height=10}
 dist = pairwise_fst
-popvec = populations_63_info %>% 
-  mutate(pop_no = 1:63) %>% 
-  filter(Quadrant == "Kodiak/Afognak Islands") %>% 
-  filter(Group != "Sturgeon/Kitoi Bay") %>% 
-  filter(!Location %in% c("Karluk Lagoon", "Gull Cape Lagoon", "Big Sukhoi", "Sitkinak Island")) %>% 
-  pull(pop_no)
+popvec = 32:63
 colvec = match(colors_7[groupvec_7], colors())
+groups = groups_7[4:7]
+cols = colors_7[4:7]
 main = ""
 labels = TRUE
 locNames = 1:63
@@ -790,37 +759,74 @@ size = 1.3
 names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
 xx=dist[popvec,popvec]
 x=as.vector(cmdscale(xx,k=3)[,1])
-y=-as.vector(cmdscale(xx,k=3)[,2])
+y=as.vector(cmdscale(xx,k=3)[,2])
 z=-as.vector(cmdscale(xx,k=3)[,3])
-
-par3d
 
 plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
 
 plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
 
 if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+
+par3d(windowRect = c(0, 0, 2000, 2000))
+
+legend3d("topright", legend = groups, pch = 16, col = cols, inset = c(0), cex = 5)
+
+rglwidget()
+```
+
+### Kodiak populations, no outliers
+
+Remove Sturgeon/Kito Bay populations, Karluk Lagoon, Gull Cape Lagoon, Big Sukhoi, and Sitkinak Island as outliers.
+```{r fst_mds_kodiak_no_outliers, warning=FALSE, fig.width=11.5, fig.height=10}
+dist = pairwise_fst
+popvec = populations_63_info %>% 
+  mutate(pop_no = 1:63) %>% 
+  filter(Quadrant == "Kodiak/Afognak Islands") %>% 
+  filter(Group != "Sturgeon/Kitoi Bay") %>% 
+  filter(!Location %in% c("Karluk Lagoon", "Gull Cape Lagoon", "Big Sukhoi", "Sitkinak Island")) %>% 
+  pull(pop_no)
+groupsvec = 5:7
+colvec = match(colors_7[groupvec_7], colors())
+groups = groups_7[groupsvec]
+cols = colors_7[groupsvec]
+main = ""
+labels = TRUE
+locNames = 1:63
+axes = TRUE
+box = TRUE
+adj = c(1.5, 1.5)
+cex = 1
+size = 1.3
+
 #~~~~~~~~
+names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+xx=dist[popvec,popvec]
+x=as.vector(cmdscale(xx,k=3)[,1])
+y=as.vector(cmdscale(xx,k=3)[,2])
+z=-as.vector(cmdscale(xx,k=3)[,3])
 
-rgl.snapshot("../2018/MDS/kodiak_no_outliers_populations_63_fst.png", fmt = "png")
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+
+par3d(windowRect = c(0, 0, 2000, 2000))
+
+legend3d("topright", legend = groups, pch = 16, col = cols, inset = c(0), cex = 5)
+
+rglwidget()
 ```
 
-### Make legends
+# Summary
 
-```{r legends}
-png(filename = "../2018/MDS/legend_groups_7.png", width = 5, height = 5, units = "in", res = 1600)
-plot.new()
-legend("topright", legend = groups_7, col = colors_7, pch = 16, cex = 1.5)
-dev.off()
+Added 3 new collections:
 
-png(filename = "../2018/MDS/legend_groups_4.png", width = 5, height = 5, units = "in", res = 1600)
-plot.new()
-legend("topright", legend = groups_7[4:7], col = colors_7[4:7], pch = 16, cex = 1.5)
-dev.off()
+1) CMBARL17 - Barling Bay Creek - 9/1/2017
+2) CMKIAV17 - Kiavak Portage - 9/1/2017
+3) CMNATA17 - Natalia Bay Creek - 9/1/2017
 
-png(filename = "../2018/MDS/legend_groups_3.png", width = 5, height = 5, units = "in", res = 1600)
-plot.new()
-legend("topright", legend = groups_7[5:7], col = colors_7[5:7], pch = 16, cex = 1.5)
-dev.off()
-```
+Of note, the 2017 collection from Barling Bay Creek came from higher up in the drainaage (Birch Foster, personal communication), but still looks very similar to the 2015 September collection. Kiavak Portage is closely related to Barling, and Natalia was bit further away from the main cluster.
 
+This update does not change any departmental recommendations regarding the use of local broodsource (Barling Bay Creek) for a chum hatchery in Old Harbor.
