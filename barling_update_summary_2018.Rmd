@@ -1,0 +1,324 @@
+---
+title: "Kodiak Chum Baseline - 2018 Update Summary"
+date: "`r paste(format(Sys.Date(), format = '%B %d, %Y'))`"
+output:
+  html_notebook:
+    theme: united
+    toc: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, message=FALSE, results='hide'}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(lubridate)
+library(leaflet)
+library(DT)
+library(genepop)
+library(abind)
+bbind <- function(...) { abind(..., along = 3) }
+Sys.setenv(RGL_USE_NULL = TRUE)
+library(rgl)
+
+.username <- "krshedd"
+.password <- ""
+source("~/../R/Functions.GCL.R")
+load_objects("../2018/Objects")
+```
+
+# Introduction
+
+## Purpose
+
+This is a quick baseline update to Andy Barclay's 2015 Kodiak chum baseline. This baseline update includes 3 new collections sampled by ADF&G staff (Birch Foster) in 2017:
+
+1) CMBARL17 - Barling Bay Creek - 9/1/2017
+2) CMKIAV17 - Kiavak Portage - 9/1/2017
+3) CMNATA17 - Natalia Bay Creek - 9/1/2017
+
+The purpose of this baseline update was to gather **pre-hatchery population structure** for spawning aggregates proximate to Barling Bay Creek (potential brood source) and Three Saints Bay (potential remote release site).
+
+## Background
+
+Andy's work in late 2015 was done to assess population genetic structure of chum salmon in SE Kodiak, specifically in the Three Saints Bay area. Kodiak Regional Aquaculture Association (KRAA) wanted to establish a new hatchery in Old Harbor to make early-run chum salmon for a remote release site in Three Saints Bay. KRAA intended to use the Sturgeon broodstock that they already use for their Kitoi Bay facility. ADF&G regional staff indicated that there are known early-run chum stocks in the Three Saints Bay area, which would present a genetic risk to using Sturgeon River broodstock in the area (similar run timing, but potentially genetically different). Regional staff indicated that Barling Bay Creek in particular had early-run chum salmon. Thus, regional staff collected temporal samples throughout the season from Barling Bay Creek and other nearby systems to get a better understanding of population genetic structure in SE Kodiak to determine whether early-run Barling Bay Creek chum were sufficiently distinct from Sturgeon River chum to be an unaccpetable genetic risk. Ultimately, this work did show that Barling Bay Creek has significant temporal genetic structure throughout the season (July vs. August vs. September). These results resulted in a memo with a department recommendation to use local broodstock (early-run Barling Bay Creek) rather than Sturgeon River broodstock from Kitoi Bay for the Three Saints Bay project.
+
+This 2018 baseline update will incorporate three additional collections made by ADF&G staff. The results from this baseline update are not going to change the decision regarding use of local broodsource, they are intended to provide some additional *pre-hatchery* baseline stock structure information. It is *not* expected that these new 2017 collections will change any genetic recommendations, they are merely presented here to follow up with stakeholders.
+
+## Outline
+
+This R Notebook will perform the following tasks:
+
+  * Review basline information
+    + Map of populations
+    + Sample size of populations
+  * Explore genetic structure
+    + Fst
+    + MDS using Fst
+
+# Baseline information
+
+## Map of populations
+
+Here is map of all Westward region chum  baseline populations (excluding North Peninsula). **Note** this map is interactive, you can zoom (mouse wheel) and navigate (click and drag). If you click on a population, it will show the population name. Population numbers correspond to the map number (`map_no`) in the table below.
+```{r population_map_numbers}
+icons <- awesomeIcons(icon = 'egg', iconColor = 'transparent', library = 'ion', markerColor = populations_63_info$color)
+
+populations_63_info %>% 
+  leaflet(width = "100%") %>% 
+  addTiles() %>% 
+  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ as.character(map_no), popup = ~ Location, labelOptions = labelOptions(noHide = TRUE, textOnly = TRUE, direction = "top"))
+```
+
+## Table of population information
+
+Below is a table showing the populations in the baseline including collection date (some populations have multiple temporal collections), sample size (n), and reporting gorup.
+```{r population_table}
+populations_63_info
+```
+
+# Genetic structure
+
+For all genetic structure work below, we use Fst as our metric of among population genetic structure.
+
+## Heatmap of Fst
+
+Below is a heatmap of Fst
+```{r fst_heatmap, fig.width=11.5, fig.height=10, warning=FALSE, message=FALSE}
+populations_63_info <- populations_63_info %>% 
+  mutate(Year1 = year(mdy(`Collection Date 1`))) %>% 
+  mutate(Year2 = year(mdy(`Collection Date 2`))) %>% 
+  mutate(Year3 = year(mdy(`Collection Date 3`))) %>% 
+  group_by(pop_no) %>% 
+  mutate(Year = max(Year1, Year2, Year3, na.rm = TRUE)) %>% 
+  mutate(Year = case_when(Location == "Zachary Bay" ~ as.double(`Collection Date 1`),
+                          TRUE ~ Year)) %>% 
+  unite(new_location, c(Location, Month, Year), sep = "_", remove = FALSE) %>% 
+  ungroup(pop_no)
+
+rownames(pairwise_fst) <- colnames(pairwise_fst) <- populations_63_info$new_location
+
+get_lower_tri <- function(mat) {
+  mat[upper.tri(mat)] <- NA
+  return(mat)
+}
+
+get_lower_tri(pairwise_fst) %>% 
+  as_tibble(rownames = "pop1") %>%
+  mutate(pop1 = factor(pop1, populations_63_info$new_location)) %>% 
+  gather(pop2, fst, -pop1, na.rm = TRUE, factor_key = TRUE) %>% 
+  ggplot(aes(x = pop1, y = pop2, fill = fst)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "black") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  ggtitle("Pairwise Fst - 63 Populations, 91 Loci") +
+  xlab("Population Name (month_year)") +
+  ylab("Population Name (month_year)")
+```
+
+## Multi-dimensional scaling plots
+
+Another way to visualize these Fst differences is with a 3-dimensional scaling plot.
+
+### All populations
+
+Make an MDS of the Fst data for comparison to Andy's work back in 2015. **Note** these MDS plots are interactive, you can zoom in/out with the mousewheel and rotate the plot by clicking and dragging. Also, the numbers in the MDS are the population number (`pop_no`), not the map number (`map_no`).
+```{r fst_mds_all, warning=FALSE, fig.width=11.5, fig.height=10}
+dist = pairwise_fst
+popvec = 1:63
+groupsvec = 1:7
+colvec = match(colors_7[groupvec_7], colors())
+groups = groups_7[groupsvec]
+cols = colors_7[groupsvec]
+main = ""
+labels = TRUE
+locNames = 1:63
+axes = TRUE
+box = TRUE
+adj = c(1.5, 1.5)
+cex = 1
+size = 1.3
+pop_names = populations_63_info %>% 
+  mutate(pop_name = case_when(pop_no %in% c(32, 37, 38, 33, 59, 46) ~ Location,
+                              TRUE ~ "")) %>% 
+  pull(pop_name)
+
+#~~~~~~~~
+names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+xx=dist[popvec,popvec]
+x=as.vector(cmdscale(xx,k=3)[,1])
+y=as.vector(cmdscale(xx,k=3)[,2])
+z=-as.vector(cmdscale(xx,k=3)[,3])
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=c(-0.1,-0.1),text=pop_names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+
+par3d(windowRect = c(0, 0, 2000, 2000))
+
+legend3d("topright", legend = groups, pch = 16, col = cols, inset = c(0), cex = 5)
+
+rglwidget()
+```
+
+### Kodiak populations
+
+Make an MDS of the Fst data for just Kodiak populations. **Note** these MDS plots are interactive, you can zoom in/out with the mousewheel and rotate the plot by clicking and dragging. Also, the numbers in the MDS are the population number (`pop_no`), not the map number (`map_no`).
+
+```{r fst_mds_kodiak, warning=FALSE, fig.width=11.5, fig.height=10}
+dist = pairwise_fst
+popvec = 32:63
+colvec = match(colors_7[groupvec_7], colors())
+groups = groups_7[4:7]
+cols = colors_7[4:7]
+main = ""
+labels = TRUE
+locNames = 1:63
+axes = TRUE
+box = TRUE
+adj = c(1.5, 1.5)
+cex = 1
+size = 1.3
+pop_names = populations_63_info %>% 
+  filter(pop_no %in% popvec) %>% 
+  mutate(pop_name = case_when(pop_no %in% c(32, 37, 38, 33, 59, 63) ~ Location,
+                              TRUE ~ "")) %>% 
+  pull(pop_name)
+
+#~~~~~~~~
+names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+xx=dist[popvec,popvec]
+x=as.vector(cmdscale(xx,k=3)[,1])
+y=as.vector(cmdscale(xx,k=3)[,2])
+z=-as.vector(cmdscale(xx,k=3)[,3])
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=c(-0.1,-0.1),text=pop_names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+
+par3d(windowRect = c(0, 0, 2000, 2000))
+
+legend3d("topright", legend = groups, pch = 16, col = cols, inset = c(0), cex = 5)
+
+rglwidget()
+```
+
+### Kodiak populations, no outliers
+
+Remove Sturgeon/Kito Bay populations, Karluk Lagoon, Gull Cape Lagoon, Big Sukhoi, and Sitkinak Island as outliers. Identify non-Barling, non-2017 collections. **Note** these MDS plots are interactive, you can zoom in/out with the mousewheel and rotate the plot by clicking and dragging. Also, the numbers in the MDS are the population number (`pop_no`), not the map number (`map_no`).
+```{r fst_mds_kodiak_no_outliers, warning=FALSE, fig.width=11.5, fig.height=10}
+dist = pairwise_fst
+popvec = populations_63_info %>% 
+  mutate(pop_no = 1:63) %>% 
+  filter(Quadrant == "Kodiak/Afognak Islands") %>% 
+  filter(Group != "Sturgeon/Kitoi Bay") %>% 
+  filter(!Location %in% c("Karluk Lagoon", "Gull Cape Lagoon", "Big Sukhoi", "Sitkinak Island")) %>% 
+  pull(pop_no)
+groupsvec = 5:7
+colvec = match(colors_7[groupvec_7], colors())
+groups = groups_7[groupsvec]
+cols = colors_7[groupsvec]
+main = ""
+labels = TRUE
+locNames = 1:63
+axes = TRUE
+box = TRUE
+adj = c(1.5, 1.5)
+cex = 1
+size = 1.3
+pop_names = populations_63_info %>% 
+  filter(pop_no %in% popvec) %>% 
+  mutate(pop_name = case_when(pop_no %in% c(34, 35, 36, 62, 27, 60, 57) ~ Location,
+                              TRUE ~ "")) %>% 
+  pull(pop_name)
+
+#~~~~~~~~
+names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+xx=dist[popvec,popvec]
+x=as.vector(cmdscale(xx,k=3)[,1])
+y=as.vector(cmdscale(xx,k=3)[,2])
+z=-as.vector(cmdscale(xx,k=3)[,3])
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=c(-0.1,-0.1),text=pop_names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+
+par3d(windowRect = c(0, 0, 2000, 2000))
+
+legend3d("topright", legend = groups, pch = 16, col = cols, inset = c(0), cex = 5)
+
+rglwidget()
+```
+
+### Kodiak populations, no outliers, identify Barling + 2017
+
+Remove Sturgeon/Kito Bay populations, Karluk Lagoon, Gull Cape Lagoon, Big Sukhoi, and Sitkinak Island as outliers. Identify Barling and 2017 collections.**Note** these MDS plots are interactive, you can zoom in/out with the mousewheel and rotate the plot by clicking and dragging. Also, the numbers in the MDS are the population number (`pop_no`), not the map number (`map_no`).
+```{r fst_mds_kodiak_no_outliers_barling, warning=FALSE, fig.width=11.5, fig.height=10}
+dist = pairwise_fst
+popvec = populations_63_info %>% 
+  mutate(pop_no = 1:63) %>% 
+  filter(Quadrant == "Kodiak/Afognak Islands") %>% 
+  filter(Group != "Sturgeon/Kitoi Bay") %>% 
+  filter(!Location %in% c("Karluk Lagoon", "Gull Cape Lagoon", "Big Sukhoi", "Sitkinak Island")) %>% 
+  pull(pop_no)
+groupsvec = 5:7
+colvec = match(colors_7[groupvec_7], colors())
+groups = groups_7[groupsvec]
+cols = colors_7[groupsvec]
+main = ""
+labels = TRUE
+locNames = 1:63
+axes = TRUE
+box = TRUE
+adj = c(1.5, 1.5)
+cex = 1
+size = 1.3
+pop_names = populations_63_info %>% 
+  filter(pop_no %in% popvec) %>% 
+  unite(month_year, c(Month, Year), sep = "_", remove = FALSE) %>% 
+  mutate(pop_name = case_when(pop_no %in% c(56, 58) ~ Location,
+                              pop_no %in% c(51:55) ~ month_year,
+                              TRUE ~ "")) %>% 
+  pull(pop_name)
+
+#~~~~~~~~
+names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+xx=dist[popvec,popvec]
+x=as.vector(cmdscale(xx,k=3)[,1])
+y=as.vector(cmdscale(xx,k=3)[,2])
+z=-as.vector(cmdscale(xx,k=3)[,3])
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=c(-0.1,-0.1),text=pop_names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+
+par3d(windowRect = c(0, 0, 2000, 2000))
+
+legend3d("topright", legend = groups, pch = 16, col = cols, inset = c(0), cex = 5)
+
+rglwidget()
+```
+
+# Summary
+
+We added 3 new collections to the Kodiak chum baseline to get a better sense of population structure for SE Kodiak chum pre-hatchery:
+
+1) CMBARL17 - Barling Bay Creek - 9/1/2017
+2) CMKIAV17 - Kiavak Portage - 9/1/2017
+3) CMNATA17 - Natalia Bay Creek - 9/1/2017
+
+Of note, the 2017 collection from Barling Bay Creek came from higher up in the drainage (Birch Foster, personal communication), but still looks very similar to the 2015 September collection. Kiavak Portage is closely related to Barling, and Natalia was bit further away from the main cluster.
+
+This update **does not** change any departmental recommendations regarding the use of local broodsource (Barling Bay Creek) for a chum hatchery in Old Harbor.
