@@ -67,7 +67,8 @@ icons <- awesomeIcons(icon = 'egg', iconColor = 'transparent', library = 'ion', 
 populations_63_info %>% 
   leaflet(width = "100%") %>% 
   addTiles() %>% 
-  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ as.character(map_no), popup = ~ Location, labelOptions = labelOptions(noHide = TRUE, textOnly = TRUE, direction = "top"))
+  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ as.character(map_no), popup = ~ Location, labelOptions = labelOptions(noHide = TRUE, textOnly = TRUE, direction = "top")) %>% 
+  addLegend("bottomright", labels = unique(populations_63_info$Group), colors = c(unique(populations_63_info$color)[1:5], "violet", "purple"), opacity = 1)
 ```
 
 ## Table of population information
