@@ -17,6 +17,7 @@ library(DT)
 library(genepop)
 library(abind)
 bbind <- function(...) { abind(..., along = 3) }
+library(rgl)
 
 .username <- "krshedd"
 .password <- ""
@@ -497,38 +498,63 @@ save_sillys(collections_post_pooling, "../2018/Genotypes/original_split_postQA_p
 
 Now need to join up these post pooling collections (populations) with the paired OceanAK data from `collections_89_info` and get in geographical order.
 
+Add new grouping variable for:  
+  * South Peninsula
+  * Chignik
+  * Kodiak Mainland
+  * Kodiak
+  * Sturgeon/Kitoi
+  * Barling River
+  * 2017 Collections
+
 ```{r post_pooling_table, message=FALSE, warning=FALSE}
 populations_63_info <- tibble(pop = collections_post_pooling) %>% 
   mutate(n = sapply(collections_post_pooling, function(x) {get(paste0(x, ".gcl"))$n} )) %>%  # get final sample sizes
   mutate(pop_no_UW = str_remove_all(pop, "UW")) %>%  # remove UW extension
-  mutate(pop_no_UW = recode(pop_no_UW, !!!list("CMBARLR15E" = "CMBARLR15", "CMBARLR15M" = "CMBARLR15", "CMBARLR15L" = "CMBARLR15"))) %>%  # remove E, M, L extension for Barling 2015 for joining
+  mutate(pop_no_UW = dplyr::recode(pop_no_UW, !!!list("CMBARLR15E" = "CMBARLR15", "CMBARLR15M" = "CMBARLR15", "CMBARLR15L" = "CMBARLR15"))) %>%  # remove E, M, L extension for Barling 2015 for joining
   separate(pop_no_UW, c("col1", "col2", "col3"), sep = "\\.", remove = TRUE) %>%  # separate sillys to join dates
   left_join(select(collections_89_info, `Silly Code`, `Collection Date`), by = c("col1" = "Silly Code")) %>%  # get date 1
   left_join(select(collections_89_info, `Silly Code`, `Collection Date`), by = c("col2" = "Silly Code")) %>%  # get date 2
   left_join(select(collections_89_info, `Silly Code`, `Collection Date`), by = c("col3" = "Silly Code")) %>%  # get date 3
   rename("Collection Date 1" = "Collection Date.x", "Collection Date 2" = "Collection Date.y", "Collection Date 3" = "Collection Date") %>%  # rename dates
   mutate(`Collection Date 1` = str_replace(`Collection Date 1`, "1/1/1992", "1992")) %>%  # CMZAC09 has bogus date
-  mutate(Month = month(mdy(`Collection Date 1`), label = TRUE)) %>% #  extract month
   mutate(col = ifelse(is.na(col3), ifelse(is.na(col2), col1, col2), col3)) %>%  # get latest collection from each pop
   left_join(select(collections_89_info, `Silly Code`, Quadrant, color, Location, Latitude, Longitude), by = c("col" = "Silly Code")) %>%  # join OceanAK based on latest collection from each pop
-  select(pop, Location, `Collection Date 1`, `Collection Date 2`, `Collection Date 3`, Month, Quadrant, n, Latitude, Longitude, color) %>%  # keep columns
+  mutate(Group = case_when(Quadrant == "Peninsula - South" ~ "South Peninsula",
+                           Quadrant == "Chignik" ~ "Chignik",
+                           Quadrant == "Kodiak Mainland" ~ "Kodiak Mainland",
+                           pop %in% c("CMPAUL15", "CMSTU09UW", "CMWESA93UW.CMKITB09UW") ~ "Sturgeon/Kitoi Bay",
+                           pop %in% c("CMBARL09UW", "CMBARLR15E", "CMBARLR15M", "CMBARLR15L") ~ "Barling Bay",
+                           pop %in% c("CMNATA17", "CMKIAV17", "CMBARL17") ~ "2017 Collections",
+                           TRUE ~ "Kodiak")) %>%  # create group for groupvec
+  dplyr::select(pop, Location, `Collection Date 1`, `Collection Date 2`, `Collection Date 3`, Group, Quadrant, n, Latitude, Longitude, color) %>%  # keep columns
   separate(Location, c("Location", "trash"), sep = " - ") %>%  # standardize Locations part 1
   separate(Location, c("Location", "more_trash"), sep = " \\(") %>%  # standardize Locations part 2
-  select(-trash, -more_trash) %>%  # drop bogus location info
+  dplyr::select(-trash, -more_trash) %>%  # drop bogus location info
   mutate(`Collection Date 1` = case_when(pop == "CMBARLR15M" ~ "8/3/2015",
                                          pop == "CMBARLR15L" ~ "9/11/2015",
-                                         TRUE ~ `Collection Date 1`))  # fix Barling 2015 dates
+                                         TRUE ~ `Collection Date 1`)) %>%  # fix Barling 2015 dates
+  mutate(Month = month(mdy(`Collection Date 1`), label = TRUE)) %>% #  extract month
+  dplyr::select(pop, Location, `Collection Date 1`, `Collection Date 2`, `Collection Date 3`, Month, Group, Quadrant, n, Latitude, Longitude, color)  # keep columns
+
+
 ```
 
 Create a leaflet map to determine map order for populations.
 ```{r population_map}
 populations_63_info <- populations_63_info %>% 
-  mutate(color = case_when(Quadrant == "Peninsula - South" ~ "red",
-                           Quadrant == "Chignik" ~ "orange",
-                           Quadrant == "Kodiak Mainland" ~ "blue",
-                           Quadrant == "Kodiak/Afognak Islands" ~ "purple"))
+  mutate(color = case_when(Group == "South Peninsula" ~ "red",
+                           Group == "Chignik" ~ "darkred",
+                           Group == "Kodiak Mainland" ~ "orange",
+                           Group == "Kodiak" ~ "green",
+                           Group == "Sturgeon/Kitoi Bay" ~ "blue",
+                           Group == "Barling Bay" ~ "purple",
+                           Group == "2017 Collections" ~ "darkpurple"))
 
-icons <- awesomeIcons(icon = 'ios-close', iconColor = 'black', library = 'ion', markerColor = populations_63_info$color)
+colors_7 <- c("red", "darkred", "orange", "blue", "green", "purple", "violet")
+save_objects("colors_7", "../2018/Objects/")
+
+icons <- awesomeIcons(icon = 'circle', iconColor = 'black', library = 'ion', markerColor = populations_63_info$color)
 
 populations_63_info %>% 
   leaflet(width = "100%") %>% 
@@ -538,37 +564,33 @@ populations_63_info %>%
 
 Save geography ordered population vector.  
 
-Add new grouping variable for:  
-  * Peninsula - South
-  * Chignik
-  * Kodiak Mainland
-  * Kodiak/Afognak Islands
-  * Sturgeon/Kitoi
-  * Barling River
-  * 2017 Collections
 ```{r populations_63}
 populations_63 <- read_csv("../2018/populations_63.csv")
 
 populations_63_info <- populations_63_info %>% 
   left_join(populations_63, by = "pop") %>% 
-  rename(Group = Quadrant) %>% 
-  select(map_no, pop, Location, `Collection Date 1`, `Collection Date 2`, `Collection Date 3`, Month, Group, n, Latitude, Longitude, color) %>% 
-  arrange(map_no)
+  select(pop_no, map_no, pop, Location, `Collection Date 1`, `Collection Date 2`, `Collection Date 3`, Month, Group, Quadrant, n, Latitude, Longitude, color) %>% 
+  arrange(pop_no)
 
 write_csv(populations_63_info, "../2018/Tables/populations_63_info.csv")
 
 populations_63 <- populations_63$pop
-save_objects(c("populations_63", "populations_63_info"), "../2018/Objects/")
+groups_7 <- unique(populations_63_info$Group)
+groupvec_7 <- match(populations_63_info$Group, groups_7)
+save_objects(c("populations_63", "populations_63_info", "groups_7", "groupvec_7"), "../2018/Objects/")
 ```
+
+
+### Final map
 
 Make map with the correct map numbers to double check.
 ```{r population_map_numbers}
-icons <- awesomeIcons(icon = 'ios-close', iconColor = 'black', library = 'ion', markerColor = populations_63_info$color)
+icons <- awesomeIcons(icon = 'egg', iconColor = 'transparent', library = 'ion', markerColor = populations_63_info$color)
 
 populations_63_info %>% 
   leaflet(width = "100%") %>% 
   addTiles() %>% 
-  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ as.character(map_no), labelOptions = labelOptions(noHide = TRUE, direction = "top"))
+  addAwesomeMarkers(~ Longitude, ~ Latitude, icon = icons, label = ~ as.character(map_no), popup = ~ Location, labelOptions = labelOptions(noHide = TRUE, textOnly = TRUE, direction = "top"))
 ```
 
 # Check *HWE* - populations
@@ -639,10 +661,8 @@ loci91 <- c(
 Calculate allele frequencies.
 ```{r allele_frequencies}
 dir.create("../2018/FreqPlots")
-# Need appropriate groupvec
-# allele_freq <- FreqFisPlot4SNPs.GCL(sillyvec = populations_63, loci = loci91[-c(90:91)], )
+allele_freq <- FreqFisPlot4SNPs.GCL(sillyvec = populations_63, loci = loci96, groupvec = groupvec_7, groupcol = colors_7, file = "../2018/FreqPlots/allele_freq_populations_63_loci96.pdf")
 ```
-
 
 # Fst
 
@@ -655,20 +675,152 @@ Fst_tree_populations_63_loci91 <- PairwiseFstTree.GCL(sillyvec = populations_63,
 
 ## Heatmap of Fst
 ```{r fst_heatmap, fig.width=11.5, fig.height=10}
+pairwise_fst <- Fst_tree_populations_63_loci91$PairwiseFst
+write_csv(as_data_frame(pairwise_fst, rownames = "pop"), "../2018/Tables/pairwise_fst_populations_63.csv")
+save_objects("pairwise_fst", "../2018/Objects/")
+
 get_lower_tri <- function(mat) {
   mat[upper.tri(mat)] <- NA
   return(mat)
 }
 
-pairwise_fst <- get_lower_tri(Fst_tree_populations_63_loci91$PairwiseFst) %>% 
+get_lower_tri(pairwise_fst) %>% 
   as_tibble(rownames = "pop1") %>%
   mutate(pop1 = factor(pop1, populations_63)) %>% 
-  gather(pop2, fst, -pop1, na.rm = TRUE, factor_key = TRUE) 
-
-pairwise_fst %>% 
+  gather(pop2, fst, -pop1, na.rm = TRUE, factor_key = TRUE) %>% 
   ggplot(aes(x = pop1, y = pop2, fill = fst)) +
   geom_tile() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
   ggtitle("Pairwise Fst - 63 Populations, 91 Loci")
+```
+
+## MDS
+
+### All populations
+
+Make an MDS of the Fst data for comparison to Andy's work back in 2015.
+```{r fst_mds_all}
+MDS.f<-function(dist,popvec,colvec,main,labels=F,locNames=F,axes=F,box=T,adj=c(2,2),cex=.7,size=1.3){
+  names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+  xx=dist[popvec,popvec]
+  x=as.vector(cmdscale(xx,k=3)[,1])
+  y=as.vector(cmdscale(xx,k=3)[,2])
+  z=as.vector(cmdscale(xx,k=3)[,3])
+  
+  par3d
+  
+  plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+  
+  plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+  
+  if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+  
+}
+
+MDS.f(dist = pairwise_fst, popvec = 1:63, colvec = match(colors_7[groupvec_7], colors()), main = "", labels = TRUE, locNames = 1:63, axes = TRUE, box = TRUE, adj = c(1.5, 1.5), cex = 1, size = 1.3)
+dir.create("../2018/MDS")
+# rgl.postscript("../2018/MDS/all_populations_63_fst.pdf", fmt = "pdf", drawText = TRUE)
+rgl.snapshot("../2018/MDS/all_populations_63_fst.png", fmt = "png")
+```
+
+### Kodiak populations
+
+Make an MDS of the Fst data for just Kodiak populations
+
+```{r fst_mds_kodiak, message=FALSE, warning=FALSE, fig.width=11.5, fig.height=10}
+# MDS.f(dist = pairwise_fst, popvec = 32:63, colvec = match(colors_7[groupvec_7], colors()), main = "", labels = TRUE, locNames = 1:63, axes = TRUE, box = TRUE, adj = c(1.5, 1.5), cex = 1, size = 1.3)
+
+dist = pairwise_fst
+popvec = 32:63
+colvec = match(colors_7[groupvec_7], colors())
+main = ""
+labels = TRUE
+locNames = 1:63
+axes = TRUE
+box = TRUE
+adj = c(1.5, 1.5)
+cex = 1
+size = 1.3
+
+#~~~~~~~~
+names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+xx=dist[popvec,popvec]
+x=as.vector(cmdscale(xx,k=3)[,1])
+y=as.vector(cmdscale(xx,k=3)[,2])
+z=-as.vector(cmdscale(xx,k=3)[,3])
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='',
+                      legend3d("topright", legend = groups_7, pch = 16, col = colors_7, inset = c(0), cex = 0.65))}
+
+rglwidget()
+
+#~~~~~~~~
+
+# rgl.snapshot("../2018/MDS/kodiak_populations_63_fst.png", fmt = "png")
+```
+
+### Kodiak populations, no outliers
+
+Remove Sturgeon/Kito Bay populations, Karluk Lagoon, Gull Cape Lagoon, Big Sukhoi, and Sitkinak Island as outliers.
+```{r fst_mds_kodiak_no_outliers}
+# MDS.f(dist = pairwise_fst, popvec = 32:63, colvec = match(colors_7[groupvec_7], colors()), main = "", labels = TRUE, locNames = 1:63, axes = TRUE, box = TRUE, adj = c(1.5, 1.5), cex = 1, size = 1.3)
+
+dist = pairwise_fst
+popvec = populations_63_info %>% 
+  mutate(pop_no = 1:63) %>% 
+  filter(Quadrant == "Kodiak/Afognak Islands") %>% 
+  filter(Group != "Sturgeon/Kitoi Bay") %>% 
+  filter(!Location %in% c("Karluk Lagoon", "Gull Cape Lagoon", "Big Sukhoi", "Sitkinak Island")) %>% 
+  pull(pop_no)
+colvec = match(colors_7[groupvec_7], colors())
+main = ""
+labels = TRUE
+locNames = 1:63
+axes = TRUE
+box = TRUE
+adj = c(1.5, 1.5)
+cex = 1
+size = 1.3
+
+#~~~~~~~~
+names <- if(labels==F){NULL} else{if(locNames==F){popvec} else{locNames[popvec]}}
+xx=dist[popvec,popvec]
+x=as.vector(cmdscale(xx,k=3)[,1])
+y=-as.vector(cmdscale(xx,k=3)[,2])
+z=-as.vector(cmdscale(xx,k=3)[,3])
+
+par3d
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col=colors()[colvec[popvec]],size=size,type='s',main=main,box=box,axes=axes,top=T,cex=1,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+plot3d(x,y,z+abs(range(z)[1]),aspect=F,col="black",size=3,type='h',box=F,axes=F,top=T,add=T,xlab='',ylab='',zlab='',xlen=0,ylen=0,zlen=0)
+
+if(labels==T){texts3d(x,y,z+abs(range(z)[1]),adj=adj,text=names,font=1,cex=cex,add=T,top=T,axes=F,xlab='',ylab='',zlab='')}
+#~~~~~~~~
+
+rgl.snapshot("../2018/MDS/kodiak_no_outliers_populations_63_fst.png", fmt = "png")
+```
+
+### Make legends
+
+```{r legends}
+png(filename = "../2018/MDS/legend_groups_7.png", width = 5, height = 5, units = "in", res = 1600)
+plot.new()
+legend("topright", legend = groups_7, col = colors_7, pch = 16, cex = 1.5)
+dev.off()
+
+png(filename = "../2018/MDS/legend_groups_4.png", width = 5, height = 5, units = "in", res = 1600)
+plot.new()
+legend("topright", legend = groups_7[4:7], col = colors_7[4:7], pch = 16, cex = 1.5)
+dev.off()
+
+png(filename = "../2018/MDS/legend_groups_3.png", width = 5, height = 5, units = "in", res = 1600)
+plot.new()
+legend("topright", legend = groups_7[5:7], col = colors_7[5:7], pch = 16, cex = 1.5)
+dev.off()
 ```
 
